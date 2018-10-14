@@ -295,7 +295,7 @@ function ajaxGetCb(sUrl, fulfill, reject) {
     xhr.onreadystatechange = function() {
       if (xhr.readyState == XMLHttpRequest.DONE) {
         if (xhr.status == 200) fulfill(xhr.responseText);
-        else reject && reject(new Error(xhr.responseText || xhr.statusText || xhr.status));
+        else reject && reject(new Error(xhr.responseText || xhr.statusText || xhr.status || ("Failed to fetch " + sUrl.substr(0, 100))));
       }
     };
     xhr.send(null);
@@ -309,7 +309,7 @@ function ajaxPost(sUrl, oData, sType) {
     xhr.onreadystatechange = function() {
       if (xhr.readyState == XMLHttpRequest.DONE) {
         if (xhr.status == 200) fulfill(xhr.responseText);
-        else reject(new Error(xhr.responseText || xhr.statusText || xhr.status));
+        else reject(new Error(xhr.responseText || xhr.statusText || xhr.status || ("Failed to fetch " + sUrl.substr(0, 100))));
       }
     };
     xhr.send(sType == "json" ? JSON.stringify(oData) : urlEncode(oData));
@@ -520,114 +520,6 @@ function StateMachine(states) {
   }
   this.getState = function() {
     return currentStateName;
-  }
-}
-
-function AudioPlayer() {
-  var audio = document.createElement("AUDIO");
-  var waitTimer;
-  var sm = new StateMachine({
-    IDLE: {
-      play: function(src, startTime, callbacks) {
-        audio.src = src;
-        audio.oncanplay = function() {sm.trigger("onLoadSuccess", startTime, callbacks)};
-        audio.onerror = function() {sm.trigger("onLoadFailure", audio.error, callbacks)};
-        audio.load();
-        return "LOADING";
-      }
-    },
-    LOADING: {
-      onLoadSuccess: function(startTime, callbacks) {
-        var onTimeout = function() {sm.trigger("onWaitSuccess", callbacks)};
-        waitTimer = setTimeout(onTimeout, Math.max(0, startTime-Date.now()));
-        return "WAITING";
-      },
-      onLoadFailure: function(error, callbacks) {
-        callbacks.reject(error);
-        return "IDLE";
-      },
-      stop: function() {
-        callbacks.reject(new Error("Stopped"))
-        return "IDLE";
-      }
-    },
-    WAITING: {
-      onWaitSuccess: function(callbacks) {
-        audio.onplay = function() {sm.trigger("onStartSuccess", callbacks)};
-        audio.onerror = function() {sm.trigger("onStartFailure", audio.error, callbacks)};
-        audio.play();
-        return "STARTING";
-      },
-      stop: function() {
-
-      }
-    },
-    STARTING: {
-      onPlaySuccess: function(callbacks) {
-        audio.onend = sm.trigger.bind(sm, "onPlayingSuccess", callbacks);
-        audio.onerror = function() {
-          sm.trigger("onFinish", callbacks);
-        }
-        callbacks.fulfill();
-        return "PLAY";
-      },
-      onPlayFailure: function(error, callbacks) {
-        callbacks.reject(error);
-        return "IDLE";
-      }
-      stop: function() {
-
-      }
-    },
-    PLAY: {
-      onFinish: function(callbacks) {
-        callbacks.onEnd();
-        return "IDLE";
-      },
-      pause: function() {
-        audio.pause();
-        return "PAUSED";
-      },
-      stop: function() {
-        audio.pause();
-        return "IDLE";
-      }
-    },
-    PAUSED: {
-      resume: function() {
-        audio.resume();
-        return "PLAYING";
-      },
-      stop: function() {
-        return "IDLE";
-      }
-    }
-  })
-  audio.oncanplay = sm.trigger.bind(sm, "onCanPlay");
-  audio.onplay = sm.trigger.bind(sm, "onPlay");
-  audio.onerror = sm.trigger.bind(sm, "onError");
-  audio.onend = sm.trigger.bind(sm, "onEnd");
-
-  var waitTimer;
-  this.play = function(src, startTime) {
-    return new Promise(function(fulfill, reject) {
-      audio.onerror = function() {reject(audio.error)};
-      audio.oncanplay = function() {
-        var waitTime = startTime - Date.now();
-        if (waitTime > 0) waitTimer = setTimeout(audio.play.bind(audio), waitTime);
-        else audio.play();
-        isSpeaking = true;
-      }
-      audio.onplay = function() {
-        audio.onerror = function() {onEnd(audio.error)};
-        audio.onend = function() {onEnd()};
-        fulfill();
-      }
-      audio.load();
-    })
-  }
-  this.pause = function() {
-
   }
 }
 
